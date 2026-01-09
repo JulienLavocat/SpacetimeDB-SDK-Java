@@ -4,15 +4,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.net.http.WebSocket.Builder;
-import java.net.http.WebSocket.Listener;
-import java.nio.ByteBuffer;
-import java.util.concurrent.CompletionStage;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+import eu.jlavocat.spacetimedb.events.OnConnectedEvent;
+import eu.jlavocat.spacetimedb.events.OnDisconnectedEvent;
 
 public class Websocket {
 
     private WebSocket webSocket;
 
-    public Websocket(String uri, String moduleName, String token) {
+    public Websocket(String uri, String moduleName, String token, Optional<Consumer<OnConnectedEvent>> onConnect,
+            Optional<Consumer<OnDisconnectedEvent>> onDisconnect) {
         String fullUri = String.format("%s/v1/database/%s/subscribe", uri, moduleName).replace("http", "ws");
         URI wsUri = URI.create(fullUri);
         Builder webSocketBuilder = HttpClient.newHttpClient()
@@ -24,19 +27,7 @@ public class Websocket {
         }
 
         this.webSocket = webSocketBuilder
-                .buildAsync(wsUri, new WebSocket.Listener() {
-                    @Override
-                    public void onOpen(WebSocket webSocket) {
-                        System.out.println("WebSocket opened");
-                        Listener.super.onOpen(webSocket);
-                    }
-
-                    @Override
-                    public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-                        System.out.println("Recv: " + new String(data.array()));
-                        return Listener.super.onBinary(webSocket, data, last);
-                    }
-                })
+                .buildAsync(wsUri, new WsListener(onConnect, onDisconnect))
                 .join();
     }
 
