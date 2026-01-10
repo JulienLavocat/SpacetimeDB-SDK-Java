@@ -19,19 +19,44 @@ public class AppTest
         return new TestSuite(AppTest.class);
     }
 
-    public void testApp() throws IOException, InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
+    // public void testConnect() throws IOException, InterruptedException {
+    // CountDownLatch latch = new CountDownLatch(1);
+    //
+    // DbConnectionBuilder builder = new DbConnectionBuilder()
+    // .withUri("http://localhost:4000")
+    // .withModuleName("nova9")
+    // .onConnect((v) -> {
+    // System.out.println("Connected event received: " + v);
+    // latch.countDown();
+    // });
+    // builder.build();
+    //
+    // boolean connected = latch.await(10, TimeUnit.SECONDS);
+    // assertTrue("Should have received connected event", connected);
+    // }
+
+    public void testCallReducer() throws IOException, InterruptedException {
+        CountDownLatch connectedLatch = new CountDownLatch(1);
+        CountDownLatch reducerResultLatch = new CountDownLatch(1);
 
         DbConnectionBuilder builder = new DbConnectionBuilder()
                 .withUri("http://localhost:4000")
                 .withModuleName("nova9")
                 .onConnect((v) -> {
+                    connectedLatch.countDown();
                     System.out.println("Connected event received: " + v);
-                    latch.countDown();
+                }).onDisconnect((v) -> {
+                    System.out.println("Disconnected event received: " + v);
+                    throw new RuntimeException("Disconnected");
                 });
-        builder.build();
 
-        boolean connected = latch.await(10, TimeUnit.SECONDS);
+        DbConnectionImpl connection = builder.build();
+
+        boolean connected = connectedLatch.await(10, TimeUnit.SECONDS);
         assertTrue("Should have received connected event", connected);
+
+        connection.callReducer("dummy", new byte[] { 1, 2, 3, 4, 5 });
+
+        reducerResultLatch.await(2, TimeUnit.SECONDS);
     }
 }

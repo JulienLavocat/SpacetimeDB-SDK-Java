@@ -2,9 +2,7 @@ package eu.jlavocat.spacetimedb;
 
 import java.io.IOException;
 import java.util.Optional;
-import java.util.Random;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import eu.jlavocat.spacetimedb.events.OnConnectedEvent;
 import eu.jlavocat.spacetimedb.events.OnDisconnectedEvent;
@@ -14,6 +12,7 @@ public class DbConnectionBuilder {
     private String uri = "http://localhost:3000";
     private String moduleName = "";
     private String token = "";
+    private boolean lightMode = false;
 
     private Optional<Consumer<OnConnectedEvent>> onConnect = Optional.empty();
     private Optional<Consumer<OnDisconnectedEvent>> onDisconnect = Optional.empty();
@@ -33,6 +32,11 @@ public class DbConnectionBuilder {
         return this;
     }
 
+    public DbConnectionBuilder withLightMode(boolean lightMode) {
+        this.lightMode = lightMode;
+        return this;
+    }
+
     public DbConnectionBuilder onConnect(Consumer<OnConnectedEvent> onConnect) {
         this.onConnect = Optional.of(onConnect);
         return this;
@@ -43,21 +47,18 @@ public class DbConnectionBuilder {
         return this;
     }
 
-    public void build() throws IOException, InterruptedException {
-
-        byte[] connectionIdBytes = new byte[16];
-        new Random().nextBytes(connectionIdBytes);
-        StringBuilder sb = new StringBuilder();
-        for (byte b : connectionIdBytes) {
-            sb.append(String.format("%02x", b));
+    public DbConnectionImpl build() throws IOException, InterruptedException {
+        if (uri.isEmpty()) {
+            throw new IllegalArgumentException("URI must be provided");
         }
-        String connectionId = sb.toString();
 
         if (moduleName.isEmpty()) {
             throw new IllegalArgumentException("Module name must be provided");
         }
 
         Websocket ws = new Websocket(uri, moduleName, token, onConnect, onDisconnect);
+
+        return new DbConnectionImpl(ws, lightMode);
     }
 
 }

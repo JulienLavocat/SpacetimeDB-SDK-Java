@@ -8,8 +8,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 import eu.jlavocat.spacetimedb.bsatn.BsatnReader;
-import eu.jlavocat.spacetimedb.bsatn.U128;
-import eu.jlavocat.spacetimedb.bsatn.U256;
 import eu.jlavocat.spacetimedb.events.OnConnectedEvent;
 import eu.jlavocat.spacetimedb.events.OnDisconnectedEvent;
 import eu.jlavocat.spacetimedb.messages.server.IdentityToken;
@@ -47,11 +45,6 @@ public final class WsListener implements WebSocket.Listener {
                     "Unsupported compression algorithm: " + compressionAlgo + ", only 0 (none) is supported");
         }
 
-        // The first message is an IdentityToken
-        // 1. Identity (u256)
-        // 2. Token (string)
-        // 3. ConnectionId (u128)
-
         var message = ServerMessageDecoder.decode(reader);
 
         switch (message) {
@@ -74,7 +67,8 @@ public final class WsListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        System.out.println("WebSocket closed: " + statusCode + " " + reason);
+        OnDisconnectedEvent event = new OnDisconnectedEvent(statusCode, reason);
+        onDisconnect.ifPresent(consumer -> consumer.accept(event));
         return CompletableFuture.completedStage(null);
     }
 

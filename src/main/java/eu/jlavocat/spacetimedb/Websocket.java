@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.net.http.WebSocket.Builder;
+import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -29,6 +30,10 @@ public class Websocket {
         this.webSocket = webSocketBuilder
                 .buildAsync(wsUri, new WsListener(onConnect, onDisconnect))
                 .join();
+    }
+
+    public void send(ByteBuffer data) {
+        webSocket.sendBinary(data, true);
     }
 
 }

@@ -1,5 +1,4 @@
 package eu.jlavocat.spacetimedb.events;
 
-public class OnDisconnectedEvent {
-
+public record OnDisconnectedEvent(int statusCode, String reason) {
 }
