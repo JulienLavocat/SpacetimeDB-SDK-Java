@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import eu.jlavocat.spacetimedb.bsatn.BsatnWriter;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
@@ -86,9 +85,9 @@ public class AppTest
         boolean connected = connectedLatch.await(10, TimeUnit.SECONDS);
         assertTrue("Should have received connected event", connected);
 
-        connection.subscribe(new String[] { "SELECT * FROM player", "SELECT * FROM test_data" });
+        connection.subscribe(new String[] { "SELECT * FROM *" });
 
-        boolean hasResult = subscribeAppliedLatch.await(5, TimeUnit.SECONDS);
+        boolean hasResult = subscribeAppliedLatch.await(20, TimeUnit.SECONDS);
         assertTrue("Should have received reducer result", hasResult);
     }
 

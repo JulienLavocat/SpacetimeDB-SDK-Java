@@ -1,5 +1,6 @@
 package eu.jlavocat.spacetimedb;
 
+import java.io.ByteArrayOutputStream;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.util.Optional;
@@ -18,6 +19,8 @@ public final class WsListener implements WebSocket.Listener {
     private final Optional<Consumer<OnDisconnectedEvent>> onDisconnect;
     private final Consumer<IdentityToken> onIdentityToken;
 
+    private ByteArrayOutputStream fragmentedMessageBuffer = null;
+
     public WsListener(Optional<Consumer<OnConnectedEvent>> onConnect,
             Optional<Consumer<OnDisconnectedEvent>> onDisconnect, Consumer<IdentityToken> onIdentityToken) {
         this.onConnect = onConnect;
@@ -31,48 +34,62 @@ public final class WsListener implements WebSocket.Listener {
     }
 
     @Override
-    public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
-        BsatnReader reader = new BsatnReader(data);
-        System.out.println("Received binary message with " + reader.remaining() + " bytes, last=" + last);
-
-        if (!last) {
-            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Fragmented messages not supported");
+    public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer buffer, boolean last) {
+        Optional<ByteBuffer> fullMessage = accumulateBinaryMessage(buffer, last);
+        if (fullMessage.isEmpty()) {
+            webSocket.request(1);
             return CompletableFuture.completedStage(null);
         }
 
-        // First byte is compression algo
-        byte compressionAlgo = reader.readByte();
-        if (compressionAlgo != 0) {
-            throw new IllegalStateException(
-                    "Unsupported compression algorithm: " + compressionAlgo + ", only 0 (none) is supported");
+        var data = fullMessage.get();
+
+        try {
+            BsatnReader reader = new BsatnReader(data);
+            System.out.println("Received binary message with " + reader.remaining() + " bytes, last=" + last);
+
+            if (!last) {
+                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Fragmented messages not supported");
+                return CompletableFuture.completedStage(null);
+            }
+
+            byte compressionAlgo = reader.readByte();
+            if (compressionAlgo != 0) {
+                throw new IllegalStateException(
+                        "Unsupported compression algorithm: " + compressionAlgo + ", only 0 (none) is supported");
+            }
+
+            var message = ServerMessage.fromBsatn(reader);
+            if (reader.remaining() != 0) {
+                throw new IllegalStateException(
+                        "BSATN decode error: message not fully consumed, " + reader.remaining() + " bytes remaining");
+            }
+
+            switch (message) {
+                case ServerMessage.IdentityTokenMessage(IdentityToken msg) -> {
+                    onIdentityToken.accept(msg);
+                    OnConnectedEvent event = new OnConnectedEvent(msg.identity(), msg.token(), msg.connectionId());
+                    onConnect.ifPresent(consumer -> consumer.accept(event));
+                }
+                case ServerMessage.TransactionUpdateMessage msg -> {
+                    System.out.println("Received TransactionUpdateMessage " + msg);
+                }
+                case ServerMessage.SubscriptionErrorMessage msg -> {
+                    System.out.println("Received SubscriptionErrorMessage " + msg);
+                }
+                case ServerMessage.SubscribeMultiAppliedMessage msg -> {
+                    System.out.println("Received SubscribeMultiAppliedMessage " + msg);
+                }
+                default -> throw new IllegalStateException("Unexpected message type: " + message.getClass().getName());
+            }
+
+            return CompletableFuture.completedStage(null);
+        } catch (Throwable t) {
+            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Error processing message: " + t.getMessage());
+            return CompletableFuture.completedStage(null);
+        } finally {
+            webSocket.request(1);
         }
 
-        var message = ServerMessage.fromBsatn(reader);
-        if (reader.remaining() != 0) {
-            throw new IllegalStateException(
-                    "BSATN decode error: message not fully consumed, " + reader.remaining() + " bytes remaining");
-        }
-
-        switch (message) {
-            case ServerMessage.IdentityTokenMessage(IdentityToken msg) -> {
-                onIdentityToken.accept(msg);
-                OnConnectedEvent event = new OnConnectedEvent(msg.identity(), msg.token(), msg.connectionId());
-                onConnect.ifPresent(consumer -> consumer.accept(event));
-            }
-            case ServerMessage.TransactionUpdateMessage msg -> {
-                System.out.println("Received TransactionUpdateMessage " + msg);
-            }
-            case ServerMessage.SubscriptionErrorMessage msg -> {
-                System.out.println("Received SubscriptionErrorMessage " + msg);
-            }
-            case ServerMessage.SubscribeMultiAppliedMessage msg -> {
-                System.out.println("Received SubscribeMultiAppliedMessage " + msg);
-            }
-            default -> throw new IllegalStateException("Unexpected message type: " + message.getClass().getName());
-        }
-
-        webSocket.request(1);
-        return CompletableFuture.completedStage(null);
     }
 
     @Override
@@ -92,6 +109,28 @@ public final class WsListener implements WebSocket.Listener {
     public void onError(WebSocket webSocket, Throwable error) {
         System.err.println("WebSocket error: " + error.getMessage());
         error.printStackTrace();
+    }
+
+    private Optional<ByteBuffer> accumulateBinaryMessage(ByteBuffer data, boolean last) {
+        if (last && fragmentedMessageBuffer == null) {
+            return Optional.of(data);
+        }
+
+        if (fragmentedMessageBuffer == null) {
+            fragmentedMessageBuffer = new ByteArrayOutputStream(Math.max(256, data.remaining()));
+        }
+
+        byte[] bytes = new byte[data.remaining()];
+        data.get(bytes);
+        fragmentedMessageBuffer.writeBytes(bytes);
+
+        if (last) {
+            ByteBuffer fullMessage = ByteBuffer.wrap(fragmentedMessageBuffer.toByteArray());
+            fragmentedMessageBuffer = null;
+            return Optional.of(fullMessage);
+        } else {
+            return Optional.empty();
+        }
     }
 
 }
