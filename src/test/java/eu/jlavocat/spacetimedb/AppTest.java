@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import eu.jlavocat.spacetimedb.bsatn.BsatnWriter;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
@@ -35,9 +36,40 @@ public class AppTest
     // assertTrue("Should have received connected event", connected);
     // }
 
-    public void testCallReducer() throws IOException, InterruptedException {
+    // public void testCallReducer() throws IOException, InterruptedException {
+    // CountDownLatch connectedLatch = new CountDownLatch(1);
+    // CountDownLatch reducerResultLatch = new CountDownLatch(2);
+    //
+    // DbConnectionBuilder builder = new DbConnectionBuilder()
+    // .withUri("http://localhost:4000")
+    // .withModuleName("nova9")
+    // .onConnect((v) -> {
+    // connectedLatch.countDown();
+    // System.out.println("Connected event received: " + v);
+    // }).onDisconnect((v) -> {
+    // System.out.println("Disconnected event received: " + v);
+    // });
+    //
+    // DbConnectionImpl connection = builder.build();
+    //
+    // boolean connected = connectedLatch.await(10, TimeUnit.SECONDS);
+    // assertTrue("Should have received connected event", connected);
+    //
+    // BsatnWriter w = new BsatnWriter();
+    // w.writeIdentity(connection.identity());
+    // w.writeU64(123456789L);
+    // w.writeBool(false);
+    // byte[] args = w.toByteArray();
+    //
+    // connection.callReducer("set_current_system", args);
+    //
+    // boolean hasResult = reducerResultLatch.await(5, TimeUnit.SECONDS);
+    // assertTrue("Should have received reducer result", hasResult);
+    // }
+
+    public void testSubscription() throws InterruptedException, IOException {
         CountDownLatch connectedLatch = new CountDownLatch(1);
-        CountDownLatch reducerResultLatch = new CountDownLatch(1);
+        CountDownLatch subscribeAppliedLatch = new CountDownLatch(2);
 
         DbConnectionBuilder builder = new DbConnectionBuilder()
                 .withUri("http://localhost:4000")
@@ -47,7 +79,6 @@ public class AppTest
                     System.out.println("Connected event received: " + v);
                 }).onDisconnect((v) -> {
                     System.out.println("Disconnected event received: " + v);
-                    throw new RuntimeException("Disconnected");
                 });
 
         DbConnectionImpl connection = builder.build();
@@ -55,8 +86,10 @@ public class AppTest
         boolean connected = connectedLatch.await(10, TimeUnit.SECONDS);
         assertTrue("Should have received connected event", connected);
 
-        connection.callReducer("dummy", new byte[] { 1, 2, 3, 4, 5 });
+        connection.subscribe(new String[] { "SELECT * FROM player", "SELECT * FROM test_data" });
 
-        reducerResultLatch.await(2, TimeUnit.SECONDS);
+        boolean hasResult = subscribeAppliedLatch.await(5, TimeUnit.SECONDS);
+        assertTrue("Should have received reducer result", hasResult);
     }
+
 }

@@ -10,14 +10,17 @@ import java.util.function.Consumer;
 
 import eu.jlavocat.spacetimedb.events.OnConnectedEvent;
 import eu.jlavocat.spacetimedb.events.OnDisconnectedEvent;
+import eu.jlavocat.spacetimedb.messages.server.IdentityToken;
 
 public class Websocket {
 
     private WebSocket webSocket;
 
-    public Websocket(String uri, String moduleName, String token, Optional<Consumer<OnConnectedEvent>> onConnect,
+    public Websocket(String uri, String moduleName, String token, Consumer<IdentityToken> onIdentityToken,
+            Optional<Consumer<OnConnectedEvent>> onConnect,
             Optional<Consumer<OnDisconnectedEvent>> onDisconnect) {
-        String fullUri = String.format("%s/v1/database/%s/subscribe", uri, moduleName).replace("http", "ws");
+        String fullUri = String.format("%s/v1/database/%s/subscribe?compression=None", uri, moduleName).replace("http",
+                "ws");
         URI wsUri = URI.create(fullUri);
         Builder webSocketBuilder = HttpClient.newHttpClient()
                 .newWebSocketBuilder()
@@ -28,7 +31,7 @@ public class Websocket {
         }
 
         this.webSocket = webSocketBuilder
-                .buildAsync(wsUri, new WsListener(onConnect, onDisconnect))
+                .buildAsync(wsUri, new WsListener(onConnect, onDisconnect, onIdentityToken))
                 .join();
     }
 

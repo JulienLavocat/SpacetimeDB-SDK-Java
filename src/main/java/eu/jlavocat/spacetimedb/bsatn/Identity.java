@@ -2,13 +2,10 @@ package eu.jlavocat.spacetimedb.bsatn;
 
 import java.util.HexFormat;
 
-public final class Identity {
+public final record Identity(U256 value) {
 
-    private final U256 value;
-
-    public Identity(U256 value) {
-        this.value = value;
-    }
+    public static final Identity ZERO = new Identity(new U256(0, 0, 0, 0));
+    public static final Identity ONE = new Identity(new U256(0, 0, 0, 1));
 
     @Override
     public String toString() {

@@ -12,7 +12,6 @@ public class DbConnectionBuilder {
     private String uri = "http://localhost:3000";
     private String moduleName = "";
     private String token = "";
-    private boolean lightMode = false;
 
     private Optional<Consumer<OnConnectedEvent>> onConnect = Optional.empty();
     private Optional<Consumer<OnDisconnectedEvent>> onDisconnect = Optional.empty();
@@ -29,11 +28,6 @@ public class DbConnectionBuilder {
 
     public DbConnectionBuilder withToken(String token) {
         this.token = token;
-        return this;
-    }
-
-    public DbConnectionBuilder withLightMode(boolean lightMode) {
-        this.lightMode = lightMode;
         return this;
     }
 
@@ -56,9 +50,7 @@ public class DbConnectionBuilder {
             throw new IllegalArgumentException("Module name must be provided");
         }
 
-        Websocket ws = new Websocket(uri, moduleName, token, onConnect, onDisconnect);
-
-        return new DbConnectionImpl(ws, lightMode);
+        return new DbConnectionImpl(uri, moduleName, token, onConnect, onDisconnect, false);
     }
 
 }

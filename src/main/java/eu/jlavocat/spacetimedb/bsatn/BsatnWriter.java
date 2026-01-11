@@ -71,6 +71,14 @@ public final class BsatnWriter {
         return result;
     }
 
+    public byte[] toByteArray() {
+        byte[] result = new byte[buf.position()];
+        ByteBuffer duplicate = buf.duplicate();
+        duplicate.flip();
+        duplicate.get(result);
+        return result;
+    }
+
     public BsatnWriter writeByteArray(byte[] bytes) {
         if (bytes == null)
             throw new NullPointerException("bytes");
@@ -204,6 +212,13 @@ public final class BsatnWriter {
         writeU64(v.w1());
         writeU64(v.w2());
         writeU64(v.w3());
+        return this;
+    }
+
+    public BsatnWriter writeIdentity(Identity identity) {
+        if (identity == null)
+            throw new NullPointerException("identity");
+        writeU256(identity.value());
         return this;
     }
 }

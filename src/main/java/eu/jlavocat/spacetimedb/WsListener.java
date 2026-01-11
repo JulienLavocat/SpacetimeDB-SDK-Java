@@ -12,16 +12,17 @@ import eu.jlavocat.spacetimedb.events.OnConnectedEvent;
 import eu.jlavocat.spacetimedb.events.OnDisconnectedEvent;
 import eu.jlavocat.spacetimedb.messages.server.IdentityToken;
 import eu.jlavocat.spacetimedb.messages.server.ServerMessage;
-import eu.jlavocat.spacetimedb.messages.server.ServerMessageDecoder;
 
 public final class WsListener implements WebSocket.Listener {
     private final Optional<Consumer<OnConnectedEvent>> onConnect;
     private final Optional<Consumer<OnDisconnectedEvent>> onDisconnect;
+    private final Consumer<IdentityToken> onIdentityToken;
 
     public WsListener(Optional<Consumer<OnConnectedEvent>> onConnect,
-            Optional<Consumer<OnDisconnectedEvent>> onDisconnect) {
+            Optional<Consumer<OnDisconnectedEvent>> onDisconnect, Consumer<IdentityToken> onIdentityToken) {
         this.onConnect = onConnect;
         this.onDisconnect = onDisconnect;
+        this.onIdentityToken = onIdentityToken;
     }
 
     @Override
@@ -35,7 +36,8 @@ public final class WsListener implements WebSocket.Listener {
         System.out.println("Received binary message with " + reader.remaining() + " bytes, last=" + last);
 
         if (!last) {
-            throw new IllegalStateException("Fragmented messages are not supported");
+            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Fragmented messages not supported");
+            return CompletableFuture.completedStage(null);
         }
 
         // First byte is compression algo
@@ -45,12 +47,26 @@ public final class WsListener implements WebSocket.Listener {
                     "Unsupported compression algorithm: " + compressionAlgo + ", only 0 (none) is supported");
         }
 
-        var message = ServerMessageDecoder.decode(reader);
+        var message = ServerMessage.fromBsatn(reader);
+        if (reader.remaining() != 0) {
+            throw new IllegalStateException(
+                    "BSATN decode error: message not fully consumed, " + reader.remaining() + " bytes remaining");
+        }
 
         switch (message) {
             case ServerMessage.IdentityTokenMessage(IdentityToken msg) -> {
+                onIdentityToken.accept(msg);
                 OnConnectedEvent event = new OnConnectedEvent(msg.identity(), msg.token(), msg.connectionId());
                 onConnect.ifPresent(consumer -> consumer.accept(event));
+            }
+            case ServerMessage.TransactionUpdateMessage msg -> {
+                System.out.println("Received TransactionUpdateMessage " + msg);
+            }
+            case ServerMessage.SubscriptionErrorMessage msg -> {
+                System.out.println("Received SubscriptionErrorMessage " + msg);
+            }
+            case ServerMessage.SubscribeMultiAppliedMessage msg -> {
+                System.out.println("Received SubscribeMultiAppliedMessage " + msg);
             }
             default -> throw new IllegalStateException("Unexpected message type: " + message.getClass().getName());
         }

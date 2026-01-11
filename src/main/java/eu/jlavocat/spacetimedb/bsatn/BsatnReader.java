@@ -3,6 +3,8 @@ package eu.jlavocat.spacetimedb.bsatn;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import java.util.function.Function;
 
 public final class BsatnReader {
 
@@ -80,7 +82,8 @@ public final class BsatnReader {
 
     public long readU32() {
         ensureRemaining(4);
-        return Integer.toUnsignedLong(buf.getInt());
+        var value = buf.getInt();
+        return Integer.toUnsignedLong(value);
     }
 
     public int readI32() {
@@ -152,6 +155,37 @@ public final class BsatnReader {
         long w2 = readU64();
         long w3 = readU64();
         return new U256(w3, w2, w1, w0);
+    }
+
+    public <T> Optional<T> readOptional(Function<BsatnReader, T> readerFunc) {
+        byte tag = readByte();
+        switch (tag) {
+            case 1:
+                return Optional.empty();
+            case 0:
+                T value = readerFunc.apply(this);
+                return Optional.of(value);
+            default:
+                throw new IllegalStateException("BSATN optional tag must be 0 or 1, got: " + tag);
+        }
+    }
+
+    public Identity readIdentity() {
+        return new Identity(readU256());
+    }
+
+    public ConnectionId readConnectionId() {
+        return new ConnectionId(readU128());
+    }
+
+    public Timestamp readTimestamp() {
+        long micros = readI64();
+        return new Timestamp(micros);
+    }
+
+    public TimeDuration readTimeDuration() {
+        long micros = readI64();
+        return new TimeDuration(micros);
     }
 
 }
